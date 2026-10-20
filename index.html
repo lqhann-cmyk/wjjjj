@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#100912" />
+  <title>A Birthday Wish for Wenjun</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --cream: #fff5e7;
+      --rose: #ff7aa8;
+      --gold: #ffc76d;
+      --glass: rgba(30, 15, 30, .52);
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #100912; }
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--cream); }
+    #stage { position: fixed; inset: 0; }
+    canvas { display: block; }
+    #veil {
+      position: fixed; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(circle at 50% 55%, transparent 35%, rgba(9,4,11,.28) 72%, rgba(5,2,7,.72) 100%),
+        linear-gradient(180deg, rgba(255,182,112,.035), transparent 38%);
+      z-index: 2;
+    }
+    .topbar {
+      position: fixed; z-index: 4; top: max(18px, env(safe-area-inset-top)); left: 20px; right: 20px;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; pointer-events: none;
+    }
+    .brand { letter-spacing: .18em; text-transform: uppercase; font-size: 11px; font-weight: 700; opacity: .82; }
+    .brand span { display: block; margin-top: 7px; letter-spacing: .03em; text-transform: none; font: 400 13px/1.4 Georgia, serif; opacity: .65; }
+    .status {
+      display: flex; align-items: center; gap: 9px; padding: 9px 12px; border: 1px solid rgba(255,255,255,.12);
+      border-radius: 999px; background: var(--glass); backdrop-filter: blur(12px); font-size: 11px; letter-spacing: .06em;
+      box-shadow: 0 10px 35px rgba(0,0,0,.24);
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #ffbd66; box-shadow: 0 0 14px #ff8a4c; }
+    .dot.live { background: #71efbc; box-shadow: 0 0 14px #71efbc; }
+    .bottom {
+      position: fixed; z-index: 5; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+      display: grid; justify-items: center; gap: 12px; width: min(92vw, 560px); text-align: center;
+    }
+    .hint { margin: 0; font-size: 12px; line-height: 1.5; letter-spacing: .05em; color: rgba(255,245,231,.68); text-shadow: 0 2px 20px #000; }
+    .controls { display: flex; gap: 9px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    button {
+      appearance: none; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; padding: 11px 17px;
+      color: #2b1420; background: linear-gradient(135deg, #fff6e7, #ffd6c4); font: 700 11px/1 Inter, sans-serif;
+      letter-spacing: .08em; text-transform: uppercase; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.28); transition: .25s ease;
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 13px 34px rgba(255,128,152,.2); }
+    button.secondary { color: var(--cream); background: rgba(35,18,34,.58); backdrop-filter: blur(12px); }
+    button:disabled { opacity: .45; cursor: wait; transform: none; }
+    #cameraPreview {
+      position: fixed; z-index: 3; right: 20px; bottom: 22px; width: 124px; aspect-ratio: 4/3; object-fit: cover;
+      transform: scaleX(-1); border: 1px solid rgba(255,255,255,.13); border-radius: 16px; opacity: 0; pointer-events: none;
+      box-shadow: 0 16px 40px rgba(0,0,0,.35); transition: opacity .4s ease;
+    }
+    #cameraPreview.visible { opacity: .72; }
+    .gesture {
+      position: fixed; z-index: 5; right: 28px; bottom: 126px; font: 700 10px/1 Inter, sans-serif;
+      text-transform: uppercase; letter-spacing: .12em; color: rgba(255,245,231,.72); opacity: 0; transition: opacity .3s;
+    }
+    .gesture.visible { opacity: 1; }
+    #error {
+      position: fixed; z-index: 8; top: 74px; left: 50%; transform: translateX(-50%); display: none;
+      max-width: min(88vw, 560px); padding: 12px 16px; border-radius: 14px; background: rgba(80,25,36,.88);
+      border: 1px solid rgba(255,180,180,.2); font-size: 12px; line-height: 1.45; text-align: center;
+    }
+    @media (max-width: 680px) {
+      .topbar { left: 14px; right: 14px; top: 14px; }
+      .brand span { display: none; }
+      #cameraPreview { width: 90px; right: 14px; bottom: 105px; }
+      .gesture { right: 18px; bottom: 202px; }
+      .bottom { bottom: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="stage" aria-label="Interactive three-dimensional birthday card"></div>
+  <div id="veil"></div>
+  <div class="topbar">
+    <div class="brand">A little light for you<span>Made with love, stardust, and warm wishes.</span></div>
+    <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">Card closed</span></div>
+  </div>
+  <div id="error" role="alert"></div>
+  <video id="cameraPreview" playsinline muted></video>
+  <div class="gesture" id="gestureLabel">Looking for one hand</div>
+  <div class="bottom">
+    <p class="hint" id="hint">Drag to rotate · Enable the camera, then open your palm to reveal the wish</p>
+    <div class="controls">
+      <button id="cameraButton">Enable hand tracking</button>
+      <button class="secondary" id="toggleButton">Open card</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script>
+    (() => {
+      'use strict';
+      const stage = document.getElementById('stage');
+      const statusText = document.getElementById('statusText');
+      const statusDot = document.getElementById('statusDot');
+      const cameraButton = document.getElementById('cameraButton');
+      const toggleButton = document.getElementById('toggleButton');
+      const video = document.getElementById('cameraPreview');
+      const gestureLabel = document.getElementById('gestureLabel');
+      const errorBox = document.getElementById('error');
+
+      if (!window.THREE) {
+        showError('The 3D library could not load. Please check your internet connection and reopen this page.');
+        return;
+      }
+
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x100812, 0.045);
+      const camera = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 100);
+      camera.position.set(0, 7.6, 10.8);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 1.8));
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.03;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.setClearColor(0x100812, 1);
+      stage.appendChild(renderer.domElement);
+
+      const composer = new THREE.EffectComposer(renderer);
+      composer.addPass(new THREE.RenderPass(scene, camera));
+      const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.6, 0.72);
+      composer.addPass(bloom);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enablePan = false;
+      controls.enableZoom = false;
+      controls.enableDamping = true;
+      controls.dampingFactor = .055;
+      controls.minPolarAngle = .45;
+      controls.maxPolarAngle = 1.46;
+      controls.target.set(0, .5, 0);
+
+      scene.add(new THREE.HemisphereLight(0xffdfca, 0x251029, .7));
+      const key = new THREE.SpotLight(0xffd1ae, 1.25, 30, Math.PI / 5, .48, 1.4);
+      key.position.set(-4.5, 9, 5.5); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); scene.add(key);
+      const rim = new THREE.PointLight(0xff4f9c, .78, 17, 2); rim.position.set(5, 3.3, -3); scene.add(rim);
+      const warm = new THREE.PointLight(0xff8f45, .82, 13, 2); warm.position.set(-5, 2, 2); scene.add(warm);
+
+      const floor = new THREE.Mesh(
+        new THREE.CircleGeometry(16, 96),
+        new THREE.MeshStandardMaterial({ color: 0x180c18, roughness: .83, metalness: .08, transparent: true, opacity: .92 })
+      );
+      floor.rotation.x = -Math.PI / 2; floor.position.y = -.15; floor.receiveShadow = true; scene.add(floor);
+
+      function roundedRect(ctx, x, y, w, h, r) {
+        ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+        ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+      }
+      function canvasTexture(draw, w=1400, h=960) {
+        const c = document.createElement('canvas'); c.width=w; c.height=h;
+        const ctx = c.getContext('2d'); draw(ctx,w,h);
+        const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        return tex;
+      }
+      function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+        let line = '';
+        for (const char of text) {
+          const test = line + char;
+          if (ctx.measureText(test).width > maxWidth && line) { ctx.fillText(line, x, y); line = char; y += lineHeight; }
+          else line = test;
+        }
+        if (line) ctx.fillText(line, x, y);
+        return y;
+      }
+
+      const coverTexture = canvasTexture((ctx,w,h) => {
+        const g=ctx.createLinearGradient(0,0,w,h); g.addColorStop(0,'#ff90b8'); g.addColorStop(.52,'#ff718f'); g.addColorStop(1,'#d85086');
+        ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+        ctx.globalAlpha=.13; ctx.fillStyle='#fff';
+        for(let i=0;i<80;i++){ ctx.beginPath(); ctx.arc((i*193)%w,(i*337)%h,3+(i%6),0,Math.PI*2); ctx.fill(); }
+        ctx.globalAlpha=1;
+        ctx.fillStyle='#fff5e7'; ctx.textAlign='center'; ctx.font='700 54px Georgia, serif'; ctx.fillText('A BIRTHDAY WISH',w/2,105);
+        ctx.font='italic 28px Georgia, serif'; ctx.fillStyle='rgba(255,245,231,.83)'; ctx.fillText('made especially for you',w/2,154);
+        // cake shadow and plate
+        ctx.fillStyle='rgba(75,25,54,.18)'; ctx.beginPath(); ctx.ellipse(w/2,790,315,55,0,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='#f9eae0'; ctx.beginPath(); ctx.ellipse(w/2,770,330,47,0,0,Math.PI*2); ctx.fill();
+        // cake layers
+        roundedRect(ctx,390,520,620,245,48); ctx.fillStyle='#fff0dc'; ctx.fill();
+        roundedRect(ctx,430,425,540,190,44); ctx.fillStyle='#86d9d1'; ctx.fill();
+        ctx.fillStyle='#fff8e8';
+        for(let x=446;x<950;x+=72){ ctx.beginPath(); ctx.arc(x,438,28,0,Math.PI*2); ctx.fill(); }
+        ctx.fillStyle='#ffc957'; ctx.fillRect(390,662,620,42);
+        // frosting dots
+        const dots=['#ff5f89','#ffcf58','#72d8cd','#9d78e8','#ff9865'];
+        for(let i=0;i<18;i++){ ctx.fillStyle=dots[i%dots.length]; ctx.beginPath(); ctx.arc(430+i*32,585+(i%2)*9,9,0,Math.PI*2); ctx.fill(); }
+        // candles and flames
+        const xs=[520,610,700,790,880];
+        xs.forEach((x,i)=>{ ctx.fillStyle=dots[(i+2)%dots.length]; roundedRect(ctx,x-13,314,26,126,10); ctx.fill();
+          ctx.fillStyle='#fff'; ctx.fillRect(x-3,326,6,96); ctx.shadowColor='#ffdb70'; ctx.shadowBlur=30;
+          const fg=ctx.createRadialGradient(x,286,2,x,286,34); fg.addColorStop(0,'#fffbd3');fg.addColorStop(.35,'#ffd65c');fg.addColorStop(1,'rgba(255,90,30,0)');
+          ctx.fillStyle=fg; ctx.beginPath(); ctx.ellipse(x,283,22,34,.12,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+        });
+        ctx.font='700 42px Inter, sans-serif'; ctx.fillStyle='#fff8ed'; ctx.fillText('FOR WENJUN',w/2,890);
+      });
+
+      const messageTexture = canvasTexture((ctx,w,h) => {
+        ctx.fillStyle='#fff8ed'; ctx.fillRect(0,0,w,h);
+        ctx.strokeStyle='#f3c977'; ctx.lineWidth=4; roundedRect(ctx,42,42,w-84,h-84,34); ctx.stroke();
+        ctx.fillStyle='#e1648d'; ctx.textAlign='center'; ctx.font='700 52px Georgia, serif'; ctx.fillText('Dear 雯君！Happy Birthday!',w/2,130);
+        ctx.fillStyle='#a26a78'; ctx.font='italic 24px Georgia, serif'; ctx.fillText('May every lovely thing find its way to you.',w/2,178);
+        ctx.textAlign='left'; ctx.fillStyle='#543541'; ctx.font='37px "Microsoft YaHei", "PingFang SC", sans-serif';
+        const msg='最可爱美好的女孩子，很开心可以和你成为朋友，在这特别的一天，祝愿你永远开心健康、美丽开朗，希望生活中的好的都来到，坏的全走开！未来的日子我们继续共同成长，永远在你身后，祝你成为想成为的人！爱你呀！';
+        const endY=wrapText(ctx,msg,125,275,w-250,70);
+        ctx.fillStyle='#e1648d'; ctx.font='italic 700 38px Georgia, serif'; ctx.textAlign='center'; ctx.fillText('Always cheering for you ♡',w/2,Math.min(endY+110,h-100));
+        const colors=['#ff729f','#ffd05d','#74d8d0','#9f83ea'];
+        for(let i=0;i<18;i++){ctx.fillStyle=colors[i%4];ctx.save();ctx.translate(70+(i*173)%(w-140),65+(i%2)*(h-130));ctx.rotate(i*.8);ctx.fillRect(-5,-16,10,32);ctx.restore();}
+      });
+
+      const insideCoverTexture = canvasTexture((ctx,w,h) => {
+        const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,'#fff9ee');g.addColorStop(1,'#ffe9e7');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+        ctx.textAlign='center';ctx.fillStyle='#db668b';ctx.font='italic 700 68px Georgia, serif';ctx.fillText('Make a wish,',w/2,360);
+        ctx.fillStyle='#6b4350';ctx.font='36px Georgia, serif';ctx.fillText('then let it glow.',w/2,430);
+        ctx.strokeStyle='rgba(219,102,139,.28)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(380,495);ctx.lineTo(w-380,495);ctx.stroke();
+        ctx.fillStyle='#f4bd5d';ctx.font='48px Georgia, serif';ctx.fillText('✦  ♡  ✦',w/2,585);
+      });
+
+      const W=6.6, H=4.55, T=.12;
+      function panelMaterials(topMap, bottomMap, edgeColor) {
+        const edge=new THREE.MeshStandardMaterial({color:edgeColor,roughness:.72});
+        return [edge,edge,new THREE.MeshStandardMaterial({map:topMap,roughness:.62}),new THREE.MeshStandardMaterial({map:bottomMap||topMap,roughness:.65}),edge,edge];
+      }
+      const card = new THREE.Group(); card.rotation.y=-.08; card.rotation.x=.02; scene.add(card);
+      const paperBack = new THREE.MeshStandardMaterial({color:0xffefe5,roughness:.75});
+      const base = new THREE.Mesh(new THREE.BoxGeometry(W,T,H), panelMaterials(messageTexture,null,0xe8b8aa));
+      base.receiveShadow=true;base.castShadow=true;base.position.y=.02;card.add(base);
+      const hinge = new THREE.Group(); hinge.position.set(0,.12,-H/2); card.add(hinge);
+      const cover = new THREE.Mesh(new THREE.BoxGeometry(W,T,H), panelMaterials(coverTexture,insideCoverTexture,0xce4f77));
+      cover.position.set(0,.08,H/2);cover.castShadow=true;cover.receiveShadow=true;hinge.add(cover);
+
+      // subtle gold hinge
+      const hingeBar = new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,W*.88,32),new THREE.MeshStandardMaterial({color:0xd9a958,metalness:.65,roughness:.3}));
+      hingeBar.rotation.z=Math.PI/2;hingeBar.position.set(0,.18,-H/2);card.add(hingeBar);
+
+      const ambientGroup = new THREE.Group(); scene.add(ambientGroup);
+      const glowTexture = canvasTexture((ctx,w,h)=>{const g=ctx.createRadialGradient(w/2,h/2,1,w/2,h/2,w/2);g.addColorStop(0,'rgba(255,245,190,1)');g.addColorStop(.22,'rgba(255,174,90,.85)');g.addColorStop(1,'rgba(255,95,50,0)');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);},128,128);
+      const glowMat = new THREE.SpriteMaterial({map:glowTexture,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+      const flickers=[];
+      for(let i=0;i<52;i++){
+        const s=new THREE.Sprite(glowMat.clone());const a=Math.random()*Math.PI*2,r=6+Math.random()*9;
+        s.position.set(Math.cos(a)*r,-.2+Math.random()*8,Math.sin(a)*r-2);const sc=.08+Math.random()*.25;s.scale.set(sc,sc,1);s.material.opacity=.12+Math.random()*.33;
+        ambientGroup.add(s);flickers.push({s,phase:Math.random()*9,speed:.5+Math.random()*1.5,base:s.material.opacity});
+      }
+
+      // Celebration shapes
+      const burst = new THREE.Group(); scene.add(burst);
+      const pieces=[];
+      const heartShape=new THREE.Shape();heartShape.moveTo(0,0);heartShape.bezierCurveTo(-.52,-.4,-1,.12,-.52,.58);heartShape.bezierCurveTo(-.2,.88,0,.62,0,.4);heartShape.bezierCurveTo(0,.62,.2,.88,.52,.58);heartShape.bezierCurveTo(1,.12,.52,-.4,0,0);
+      const heartGeo=new THREE.ShapeGeometry(heartShape);heartGeo.scale(.12,.12,.12);heartGeo.rotateX(-Math.PI/2);
+      const ribbonGeo=new THREE.BoxGeometry(.06,.018,.34);
+      const colors=[0xff5c8a,0xffc857,0x65d7ce,0x9d75e6,0xff8a5b,0xffffff];
+      for(let i=0;i<110;i++){
+        const isHeart=i%5===0;const mesh=new THREE.Mesh(isHeart?heartGeo:ribbonGeo,new THREE.MeshStandardMaterial({color:colors[i%colors.length],emissive:colors[i%colors.length],emissiveIntensity:.12,roughness:.45,side:THREE.DoubleSide}));
+        mesh.visible=false;burst.add(mesh);pieces.push({mesh,vel:new THREE.Vector3(),spin:new THREE.Vector3(),life:0});
+      }
+      function celebrate(){
+        pieces.forEach((p,i)=>{p.mesh.visible=true;p.mesh.position.set((Math.random()-.5)*1.3,.25,-H/2+.6+Math.random()*1.2);p.mesh.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6);
+          const a=Math.random()*Math.PI*2,s=1.6+Math.random()*3.2;p.vel.set(Math.cos(a)*s,(3.3+Math.random()*4.4),Math.sin(a)*s+1.4);p.spin.set((Math.random()-.5)*9,(Math.random()-.5)*9,(Math.random()-.5)*9);p.life=2.7+Math.random()*2.4;});
+      }
+
+      let openness=0,targetOpen=0,lastTime=performance.now(),lastState=0;
+      function setOpen(value,source='button'){
+        const next=value?1:0;
+        if(next===targetOpen)return;
+        targetOpen=next;
+        toggleButton.textContent=next?'Close card':'Open card';
+        statusText.textContent=next?'Opening…':'Closing…';
+        if(next && !lastState){celebrate();playBirthdaySong();}
+        lastState=next;
+      }
+      toggleButton.addEventListener('click',()=>setOpen(!targetOpen));
+      addEventListener('keydown',e=>{if(e.code==='Space' && e.target.tagName!=='BUTTON'){e.preventDefault();setOpen(!targetOpen);}});
+
+      let audioCtx=null;
+      function unlockAudio(){ if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended')audioCtx.resume(); }
+      function playBirthdaySong(){
+        unlockAudio();if(!audioCtx)return;
+        const t=audioCtx.currentTime+.04, beat=.24;
+        const melody=[
+          [0,.75],[0,.25],[2,1],[0,1],[5,1],[4,2], [0,.75],[0,.25],[2,1],[0,1],[7,1],[5,2],
+          [0,.75],[0,.25],[12,1],[9,1],[5,1],[4,1],[2,2], [10,.75],[10,.25],[9,1],[5,1],[7,1],[5,2]
+        ];
+        let cursor=0;const root=261.63;
+        melody.forEach(([semi,dur],i)=>{
+          const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.type=i%3===0?'triangle':'sine';osc.frequency.value=root*Math.pow(2,semi/12);
+          const start=t+cursor*beat,end=start+dur*beat*.92;gain.gain.setValueAtTime(.0001,start);gain.gain.exponentialRampToValueAtTime(.085,start+.025);gain.gain.exponentialRampToValueAtTime(.0001,end);
+          osc.connect(gain).connect(audioCtx.destination);osc.start(start);osc.stop(end+.04);cursor+=dur;
+        });
+      }
+
+      function smoothstep(t){return t*t*(3-2*t);}
+      function animate(now){
+        requestAnimationFrame(animate);const dt=Math.min((now-lastTime)/1000,.04);lastTime=now;
+        openness += (targetOpen-openness)*(1-Math.exp(-dt*3.2));
+        const eased=smoothstep(openness);hinge.rotation.x=-eased*Math.PI*.58;
+        card.position.y=.08+Math.sin(eased*Math.PI)*.14;
+        if(Math.abs(targetOpen-openness)<.012){statusText.textContent=targetOpen?'Card open':'Card closed';}
+        flickers.forEach((f,i)=>{f.s.material.opacity=f.base*(.68+.32*Math.sin(now*.001*f.speed+f.phase));f.s.position.y+=Math.sin(now*.0005+f.phase)*.0008;});
+        pieces.forEach(p=>{if(p.life>0){p.life-=dt;p.vel.y-=5.2*dt;p.mesh.position.addScaledVector(p.vel,dt);p.mesh.rotation.x+=p.spin.x*dt;p.mesh.rotation.y+=p.spin.y*dt;p.mesh.rotation.z+=p.spin.z*dt;if(p.life<.45)p.mesh.scale.setScalar(Math.max(0,p.life/.45));else p.mesh.scale.setScalar(1);if(p.life<=0)p.mesh.visible=false;}});
+        warm.intensity=.82+.12*Math.sin(now*.006)+.07*Math.sin(now*.017);
+        controls.update();composer.render();
+      }
+      requestAnimationFrame(animate);
+
+      function showError(message){errorBox.textContent=message;errorBox.style.display='block';setTimeout(()=>errorBox.style.display='none',8500);}
+      let cameraFeed=null,hands=null,openFrames=0,closedFrames=0;
+      function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);}
+      function classifyHand(lm){
+        const palm=distance(lm[0],lm[9]);
+        const tips=[8,12,16,20],pips=[6,10,14,18];
+        let extended=0;
+        tips.forEach((tip,i)=>{if(distance(lm[tip],lm[0])>distance(lm[pips[i]],lm[0])+palm*.18)extended++;});
+        const thumb=distance(lm[4],lm[5])>palm*.55;
+        const opennessScore=(tips.reduce((s,id)=>s+distance(lm[id],lm[0]),0)/4)/palm;
+        if(extended>=4 && thumb && opennessScore>1.75)return 'open';
+        if(extended<=1 && opennessScore<1.48)return 'closed';
+        return 'neutral';
+      }
+      function onHands(results){
+        const one=results.multiHandLandmarks&&results.multiHandLandmarks.length===1;
+        if(!one){gestureLabel.textContent=results.multiHandLandmarks?.length>1?'Use one hand':'Looking for one hand';openFrames=closedFrames=0;return;}
+        const state=classifyHand(results.multiHandLandmarks[0]);
+        gestureLabel.textContent=state==='open'?'Open palm detected':state==='closed'?'Closed hand detected':'Hold your gesture';
+        if(state==='open'){openFrames++;closedFrames=0;if(openFrames>5)setOpen(true,'gesture');}
+        else if(state==='closed'){closedFrames++;openFrames=0;if(closedFrames>5)setOpen(false,'gesture');}
+        else {openFrames=Math.max(0,openFrames-1);closedFrames=Math.max(0,closedFrames-1);}
+      }
+      async function startTracking(){
+        unlockAudio();cameraButton.disabled=true;cameraButton.textContent='Starting camera…';
+        try{
+          if(!window.Hands||!window.Camera)throw new Error('Hand tracking libraries did not load.');
+          hands=new Hands({locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+          hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:.66,minTrackingConfidence:.62});hands.onResults(onHands);
+          cameraFeed=new Camera(video,{onFrame:async()=>{await hands.send({image:video});},width:640,height:480});
+          await cameraFeed.start();
+          video.classList.add('visible');gestureLabel.classList.add('visible');statusDot.classList.add('live');
+          cameraButton.textContent='Hand tracking active';document.getElementById('hint').textContent='Open palm: reveal the wish · Closed hand: close the card · Drag: rotate';
+        }catch(err){cameraButton.disabled=false;cameraButton.textContent='Try hand tracking again';showError('Camera access was unavailable. You can still use the Open Card button. If needed, open this file in Chrome or Edge and allow camera access.');console.error(err);}
+      }
+      cameraButton.addEventListener('click',startTracking,{once:false});
+
+      function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));}
+      addEventListener('resize',resize);
+    })();
+  </script>
+</body>
+</html>
